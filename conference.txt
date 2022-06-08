@@ -1,0 +1,135 @@
+1.conference-agent
+  会议控制管理模块
+  Basic-Streams is pushed by initRoom
+  Stream-ins(ForwardStream) is pushed by addStream
+  ForwardStream is defined in stream.js
+  
+  requestHandler.js
+  const getRoomController = (roomId) => {
+    return new Promise((resolve, reject) => {
+      rpc.callRpc(cluster_name, 'getScheduled', ['conference', roomId], {callback: (agent) => {
+        if (agent === 'timeout' || agent === 'error') {
+          reject('Room is inactive');
+        } else {
+          rpc.callRpc(agent, 'queryNode', [roomId], {callback: (node) => {
+            if (node === 'timeout' || node === 'error') {
+              reject('Room is inactive');
+            } else {
+              resolve(node);
+            }
+          }});
+        }
+    }});
+    });
+  };
+  
+  rpc.js
+  exports.callRpc = function (to, method, args, callbacks, timeout) {
+    if (rpcClient) {
+        rpcClient.remoteCall(to, method, args, callbacks, timeout);
+    }
+  };
+  
+  amqpClient.js
+  remoteCall(to, method, args, callbacks, timeout) {
+    log.debug('remoteCall, corrID:', this.corrID, 'to:', to, 'method:', method);
+    const channel = this.bus.channel;
+    if (this.ready && channel) {
+      const corrID = this.corrID++;
+      this.callMap[corrID] = {};
+      this.callMap[corrID].fn = callbacks || {
+        callback: function () {}
+      };
+      this.callMap[corrID].timer = setTimeout(() => {
+        if (this.callMap[corrID]) {
+          for (const i in this.callMap[corrID].fn) {
+            if (typeof this.callMap[corrID].fn[i] === 'function') {
+              this.callMap[corrID].fn[i]('timeout');
+            }
+          }
+          delete this.callMap[corrID];
+        }
+      }, timeout || TIMEOUT);
+
+      const content = JSON.stringify({
+        method,
+        args,
+        corrID,
+        replyTo: this.replyQ,
+      });
+      log.debug('Publish content:', content);
+      try {
+        channel.publish('', to, Buffer.from(content));
+      } catch (e) {
+        log.warn('Failed to publish:', e);
+      }
+    } else {
+      this.ready = false;
+      for (const i in callbacks) {
+        if (typeof callbacks[i] === 'function') {
+          callbacks[i]('error', 'rpc client is not ready');
+        }
+      }
+    }
+  }
+  
+  rpcAPI is used by clusterManager.js, getScheduled
+  getScheduled: function (purpose, task, callback) {
+            getScheduled(purpose, task, function (worker) {
+                callback('callback', worker);
+            }, function (error_reason) {
+                callback('callback', 'error', error_reason);
+            });
+        }
+        
+   var getScheduled = function (purpose, task, on_ok, on_error) {
+        if (schedulers[purpose]) {
+            schedulers[purpose].getScheduled(task, on_ok, on_error);
+        } else {
+            on_error('Invalid purpose.');
+        }
+    };
+    
+    
+    
+打开3004端口调用conference.js initRoom() 到 roomInterface.js config() 到 onSessionEstablished() 到 addSubscription()
+  addSubscription() 到 suscription.js setSource()
+  addSubscription() 到 suscription.js toRoomCtrlSubArgs() 
+  
+  
+  roomInterface.js config() configs RoomLayout by roomModal.js
+  video: {
+    format: { type: VideoSchema, default: DefaultUtil.VIDEO_OUT[0] },
+    parameters: {
+      resolution: Resolution,
+      framerate: { type: Number, default: 24 },
+      bitrate: { type: Number },
+      keyFrameInterval: { type: Number, default: 100 },
+      packet_loss: { type: Number, default: 10},
+    },
+  transcoding: {
+    audio: { type: Boolean, default: true },
+    video: {
+      format: { type: Boolean, default: true },
+      parameters: {
+        resolution: { type: Boolean, default: true },
+        framerate: { type: Boolean, default: true },
+        bitrate: { type: Boolean, default: true },
+        keyFrameInterval: { type: Boolean, default: true },
+        packet_loss: { type: Boolean, default: true}
+      },
+    }
+    
+    
+    
+  emit发送命令,on接受命令并处理:
+  socket.emit('action');表示发送了一个action命令，命令是字符串的，在另一端接收时，可以这么写： socket.on('action',function(){...});
+  socket.emit('action',data);表示发送了一个action命令，还有data数据，在另一端接收时，可以这么写： socket.on('action',function(data){...});
+  
+  initRoom(): rtcController.on('session-established',...) receive from rtcController.js onTransportProgress() & onTrackUpdate() : this.emit('session-established', operation);
+  
+  
+  
+2.Mongoose 数据库
+  mongoose是基于Node.js的用于操作MongoDB数据库的第三方的模块
+  Mongooose中，有三个比较重要的概念，分别是Schema、Model、Document。它们的关系是：Schema生成Model，Model创造Document，Model和Document都可对数据库操作造成影响，但Model比Document更具操作性

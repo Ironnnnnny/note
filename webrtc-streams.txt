@@ -1,0 +1,96 @@
+1.call.h 
+  includes <video_receive_stream.h>/<video_receive_stream2.h>
+	class Call (包含多个发送和/或接收流。所有Streams假定具有相同的远程端点，并将共享比特率估计等)
+      virtual VideoSendStream* CreateVideoSendStream(
+      VideoSendStream::Config config,
+      VideoEncoderConfig encoder_config,
+      std::unique_ptr<FecController> fec_controller);
+	
+	
+2.rtp_rtcp_defines.h
+	//数据包流参数
+	 RtpReceiveStats:
+	 packets_lost  //丢包率
+		
+		
+3.video_receive_stream.h
+  includes <rtp_rtcp_defines.h>
+  struct Stats:
+  	RtpReceiveStats rtp_stats;  //which is including packet_lost
+  	int network_frame_rate = 0; //视频帧率
+  	int total_bitrate_bps = 0;  //视频速率
+  //Add info on currently-received codec to Stats.
+  virtual Stats GetStats() const = 0;
+	
+	  
+4.video_receive_stream2.h
+  //VideoReceiveStream2 inherits VideoReceiveStream
+  	webrtc::VideoReceiveStream::Stats GetStats() const override;
+  	VideoReceiveStream2::Stats stats = stats_proxy_.GetStats();
+  	stats_proxy_: receive_statistics_proxy2
+  	
+  	
+5.VideoReceiveAdapter.h
+  //inherits Call
+  //change RtcAdapter structs in VideoReceiveAdapterImpl::AdapterDecoder::Decode
+      if (statsChanged) {
+        // Notify the stats
+        AdapterStats stats = {
+            m_parent->m_width,
+            m_parent->m_height,
+            m_parent->m_format
+        };
+        InternetStats istats = {
+            m_parent->m_packet_lost,
+            m_parent->m_internet_delay,
+            m_parent->m_total_bitrate_bps,
+            m_parent->m_network_frame_rate
+        };
+        m_parent->m_statsListener->onAdapterStats(stats, istats);
+    }
+  
+  
+6.Foledrs-webrtc
+  index.js  (WebrtcNode)
+    handleTrackInfo trackInfo.track
+      callBase: CallBase {},  (CallBaseWrapper.h)
+          inherits RtcAdapter.h
+      videoFrameConstructor: VideoFrameConstructor {},
+          inherits VideoReceiveAdapter.h
+          
+7.VideoReceiveAdapter.h
+  webrtc::VideoReceiveStream* m_videoRecvStream = nullptr;
+
+8.RtcAdapter.h
+  include <MediaFramePipeline.h>
+  class RtcAdapterImpl inherits VideoReceiveAdapter
+	  struct AdapterStats {
+	    int width = 0;  	//从320增加到640
+	    int height = 0;	//从240增加到480
+	    int packet_lost = 0;	//固定200
+	    owt_base::FrameFormat format = owt_base::FRAME_FORMAT_UNKNOWN;
+	};	//根据放在AdapterStats的顺序赋值？
+  	
+  	
+9.VideoReceiveAdapter.h
+  VideoReceiveAdapterImpl::AdapterDecoder::Decode defines struct AdapterStats, which is defining in RtcAdapter.h
+  struct AdapterStats's paramters fetches in encoded_image.h 
+  
+  
+10.VideoFrameConstructor.h
+  class VideoFrameConstructor inherits RtcAdapter
+  //通过onAdapterStats传参给conference-agent
+  void VideoFrameConstructor::onAdapterStats(const AdapterStats& stats)
+{
+    if (m_videoInfoListener) {
+	std::ostringstream json_str;
+	json_str.str("");
+	json_str << "{\"video\": {\"parameters\": {\"resolution\": {"
+	         << "\"width\":" << stats.width << ", "
+	         << "\"height\":" << stats.height << "}"
+	         << ",\"packet_lost\": " << stats.packet_lost
+	         << "}}}";
+	m_videoInfoListener->onVideoInfo(json_str.str().c_str());
+    }
+}
+

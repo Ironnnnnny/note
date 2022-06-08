@@ -1,0 +1,22 @@
+Docker load image
+	docker load < [Image(tar)]
+
+Docker save iamge
+	docker save [ContainerID] > [Position]
+	
+Docker run images
+	docker run --name [Name] -d [Image]
+	docker run --name [Name] -d [Image] --network=host bash
+
+修改docker存储路径
+	sudo vim /etc/systemd/system/multi-user.target.wants/docker.service
+	systemctl daemon-reload
+	systemctl restart docker
+	
+开启docker容器
+	docker start [Name]
+	docker restart [Name]
+	docker stop [Name]
+
+进入docker容器
+	docker exec -it [Name] bash

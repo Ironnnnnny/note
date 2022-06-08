@@ -1,0 +1,98 @@
+React.js 框架
+
+	e = React.createElement;
+
+	1.React组件创建
+	class RoomMember extends React.Component{
+	  //构建参数、函数
+	  constructor(props){  
+	    super(props);  //继承父类
+	    //当前状态变量
+	    this.state = {
+	      room: _.cloneDeep(props.data),
+	      m_data: [],
+	      nowMember: [],   //获取当前的成员详情
+	      nowStreamIn:[],  //获取当前成员的输入流
+	      streamIn: [],    //获取该房间内部的所有输入流
+	      streamOut: [],   //获取该房间内部的所有输出流
+	    };
+	    this.handleDatas = this.handleDatas.bind(this); //绑定函数
+	  }
+	  
+	  //返回组件html形式
+	  render(){
+	    const {room} = this.state;
+	    return e(
+	      'div',  //html类型  div、p、button
+	      {
+		className: 'modal-dialog modal-lg hi',
+		role: 'document',
+	      },  //指定className或者id等参数
+	      ... //可添加按钮、文本、组件等
+	    );
+	  }
+	  
+	  2.函数更新状态变量
+	  restApi.getParticipants(room._id , (err, resp) => {   //err返回错误信息，返回有效JSON回流resp
+	      if (err) {
+		return notify('error', 'Failed to get participants', err);
+	      }
+	      let ret = JSON.parse(resp);
+	      //设置当前状态
+	      this.setState({
+		m_data: ret
+	      });
+	    })
+	    
+	  3.构建react列表
+	  renderMembers(){
+	    const {streamIn, m_data, streamOut,nowMember} = this.state;
+	    const columns = [
+	      {
+		Header: 'Members',  //表头
+		accessor: 'id',    //状态变量里面的值
+		width: 150,	    //表格宽度
+	      },
+	      {
+		Header: 'Members\' detail',
+		width: 100,
+		//键
+		Cell: (cellInfo)=>e(
+		  'button',
+		  {
+		    className: 'btn btn-sm btn-primary',
+		    onClick: ()=>{
+		      ....  //button处理
+		    }
+		  },
+		  'Detail'
+		)
+	      }
+	    ];
+	    //返回组件html
+	    return e(
+	      ReactTable,
+	      {
+		data: m_data,  //表格参数
+		columns,	//列表
+		manual: true,
+		sortable: false,   //有序排列
+		showPagination: false,  //显示页码
+		onFetchData: this.handleDatas  //刷新状态量
+	      }
+	    )
+	  }
+	  
+	  4.设置定时器进行数据的刷新获取
+	  //手动开启
+	  timerStart1 = () =>  {
+	    if (timer1) {
+	      clearInterval(timer1);
+	    }
+	    timer1 = setInterval(() => this.updateStream(), 1000);
+	  }
+	  //手动关闭
+	  timerStop1 = () => {
+	    clearInterval(timer1);
+	    timer1 = 0;
+	  }
